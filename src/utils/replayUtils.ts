@@ -54,21 +54,53 @@ export function parseLogEntry(entry: string): Record<string, string> {
   return params;
 }
 
+// Helper function to parse number values that might contain commas
+function parseNumberWithCommas(value: string): number {
+  if (!value) return 0;
+  // Replace commas with dots for proper parsing
+  return parseFloat(value.replace(',', '.'));
+}
+
 // Parse all log entries to get structured data
 export function parseLogEntries(replayData: ReplayData): ParsedLogEntry[] {
-  return replayData.log.map(entry => {
+  if (!replayData.log || replayData.log.length === 0) {
+    return [];
+  }
+
+  return replayData.log.map((entry, index) => {
     const crParams = parseLogEntry(entry.cr);
     const srParams = parseLogEntry(entry.sr);
     
+    const action = crParams.action || '';
+    const isCollect = action === 'doCollect';
+    
+    // Handle different number formats
+    const bet = parseFloat(crParams.c || '0') * (parseInt(crParams.l || '0', 10) || 20);
+    const balance = parseNumberWithCommas(srParams.balance || '0');
+    const win = parseNumberWithCommas(srParams.w || '0');
+    const totalWin = parseNumberWithCommas(srParams.tw || '0');
+    const freeSpinWin = parseNumberWithCommas(srParams.fswin || '0');
+    
+    // Check if this is a free spin
+    const isFreeSpin = srParams.fs !== undefined && srParams.fs !== '0';
+    
+    // For big wins, check additional parameters
+    const bigWin = parseNumberWithCommas(srParams.apwa || '0');
+    const finalWin = bigWin > 0 ? bigWin : win;
+    
     return {
-      action: crParams.action || '',
-      bet: parseFloat(srParams.c || '0') * (parseInt(crParams.l || '0', 10) || 20),
-      balance: parseFloat(srParams.balance || '0'),
-      win: parseFloat(srParams.w || '0'),
+      action,
+      bet,
+      balance,
+      win: finalWin,
+      totalWin,
+      freeSpinWin,
       timestamp: parseInt(srParams.stime || '0', 10),
       spinIndex: parseInt(srParams.index || '0', 10),
+      isFreeSpin,
+      isCollect
     };
-  }).filter(entry => entry.action === 'doSpin' || entry.action === 'doCollect');
+  });
 }
 
 // Calculate metrics from parsed log entries
@@ -77,32 +109,90 @@ export function calculateMetrics(parsedEntries: ParsedLogEntry[]): ReplayMetrics
   let totalWins = 0;
   let biggestWin = 0;
   let biggestWinIndex = -1;
-  const balanceHistory: {balance: number, win: number, timestamp?: number, spinIndex?: number}[] = [];
-  const spinsCount = parsedEntries.filter(entry => entry.action === 'doSpin').length;
+  let freeSpinsCount = 0;
+  let freeSpinsWin = 0;
+  const bigWins: {amount: number, spinIndex: number}[] = [];
   
-  parsedEntries.forEach((entry, index) => {
+  const balanceHistory: {
+    balance: number;
+    win: number;
+    totalWin?: number;
+    bet?: number;
+    timestamp?: number;
+    spinIndex?: number;
+    isFreeSpin?: boolean;
+  }[] = [];
+  
+  // Filter by actual spin or collect actions
+  const validEntries = parsedEntries.filter(entry => entry.action === 'doSpin' || entry.action === 'doCollect');
+  const spinsCount = validEntries.filter(entry => entry.action === 'doSpin').length;
+  
+  // Find the initial balance
+  const startingBalance = validEntries.length > 0 ? validEntries[0].balance : 0;
+  
+  validEntries.forEach((entry, index) => {
+    // Skip entries without balance information
+    if (entry.balance === undefined) return;
+    
     if (entry.action === 'doSpin') {
+      // Track bets
       totalBets += entry.bet;
-      totalWins += entry.win;
       
-      if (entry.win > biggestWin) {
-        biggestWin = entry.win;
-        biggestWinIndex = entry.spinIndex || index;
+      // Track wins
+      if (entry.win > 0) {
+        totalWins += entry.win;
+        
+        // Track big wins
+        if (entry.win > 50) {
+          bigWins.push({
+            amount: entry.win,
+            spinIndex: entry.spinIndex || index
+          });
+        }
+        
+        // Track biggest win
+        if (entry.win > biggestWin) {
+          biggestWin = entry.win;
+          biggestWinIndex = entry.spinIndex || index;
+        }
       }
       
+      // Track free spins
+      if (entry.isFreeSpin) {
+        freeSpinsCount++;
+        if (entry.freeSpinWin) {
+          freeSpinsWin += entry.freeSpinWin;
+        }
+      }
+      
+      // Add to balance history
       balanceHistory.push({
         balance: entry.balance,
         win: entry.win,
+        totalWin: entry.totalWin,
+        bet: entry.bet,
         timestamp: entry.timestamp,
-        spinIndex: entry.spinIndex
+        spinIndex: entry.spinIndex || index,
+        isFreeSpin: entry.isFreeSpin
+      });
+    } else if (entry.isCollect) {
+      // Handle collect actions
+      balanceHistory.push({
+        balance: entry.balance,
+        win: 0,
+        timestamp: entry.timestamp,
+        spinIndex: entry.spinIndex || index
       });
     }
   });
   
-  const startingBalance = parsedEntries[0]?.balance || 0;
-  const endingBalance = parsedEntries[parsedEntries.length - 1]?.balance || 0;
+  // Sort big wins by amount (descending)
+  bigWins.sort((a, b) => b.amount - a.amount);
+  
+  // Calculate final metrics
+  const endingBalance = validEntries.length > 0 ? validEntries[validEntries.length - 1].balance : 0;
   const netProfit = endingBalance - startingBalance;
-  const winRate = spinsCount > 0 ? parsedEntries.filter(entry => entry.win > 0).length / spinsCount * 100 : 0;
+  const winRate = spinsCount > 0 ? validEntries.filter(entry => entry.win > 0).length / spinsCount * 100 : 0;
   
   return {
     totalBets,
@@ -114,7 +204,10 @@ export function calculateMetrics(parsedEntries: ParsedLogEntry[]): ReplayMetrics
     spinsCount,
     balanceHistory,
     startingBalance,
-    endingBalance
+    endingBalance,
+    freeSpinsCount,
+    freeSpinsWin,
+    bigWins
   };
 }
 

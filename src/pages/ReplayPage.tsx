@@ -11,6 +11,7 @@ import { ReplayData, ReplayMetrics } from '@/types/replay';
 import { parseLogEntries, calculateMetrics } from '@/utils/replayUtils';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import BigWinsTable from '@/components/BigWinsTable';
 
 const ReplayPage = () => {
   const { token, roundID, envID } = useParams();
@@ -20,8 +21,9 @@ const ReplayPage = () => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const replayUrl = `https://euioa.jxcsysekgu.net/${token}`;
-  const dataUrl = `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?token=${token}&roundID=${roundID}&envID=${envID}`;
+  const replayUrl = token ? `https://euioa.jxcsysekgu.net/${token}` : '';
+  const dataUrl = token && roundID && envID ? 
+    `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?token=${token}&roundID=${roundID}&envID=${envID}` : '';
 
   useEffect(() => {
     const fetchReplayData = async () => {
@@ -29,16 +31,20 @@ const ReplayPage = () => {
         setLoading(true);
         setError(null);
         
+        if (!dataUrl) {
+          throw new Error('Parâmetros de URL incompletos');
+        }
+        
         const response = await fetch(dataUrl);
         if (!response.ok) {
-          throw new Error(`Failed to fetch replay data: ${response.statusText}`);
+          throw new Error(`Falha ao buscar dados do replay: ${response.statusText}`);
         }
         
         const data: ReplayData = await response.json();
         setReplayData(data);
         
         if (data.error !== 0) {
-          throw new Error(`API returned error: ${data.description}`);
+          throw new Error(`API retornou erro: ${data.description}`);
         }
         
         // Parse the log entries
@@ -48,9 +54,14 @@ const ReplayPage = () => {
         const calculatedMetrics = calculateMetrics(parsedEntries);
         setMetrics(calculatedMetrics);
         
+        console.log('Replay data parsed:', {
+          parsedEntries,
+          calculatedMetrics
+        });
+        
       } catch (err) {
-        console.error("Error fetching replay data:", err);
-        setError(err instanceof Error ? err.message : "Unknown error occurred");
+        console.error("Erro ao buscar dados do replay:", err);
+        setError(err instanceof Error ? err.message : "Erro desconhecido");
         toast({
           title: "Erro ao carregar dados",
           description: err instanceof Error ? err.message : "Ocorreu um erro inesperado",
@@ -104,9 +115,10 @@ const ReplayPage = () => {
               
               <div className="h-[500px] animate-fade-in" style={{ animationDelay: '0.2s' }}>
                 <Tabs defaultValue="chart" className="h-full flex flex-col">
-                  <TabsList className="grid w-full grid-cols-2 mb-4 bg-darkCharcoal">
+                  <TabsList className="grid w-full grid-cols-3 mb-4 bg-darkCharcoal">
                     <TabsTrigger value="chart">Gráficos</TabsTrigger>
                     <TabsTrigger value="table">Histórico</TabsTrigger>
+                    <TabsTrigger value="big-wins">Grandes Vitórias</TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="chart" className="flex-1 overflow-hidden space-y-4">
@@ -120,6 +132,10 @@ const ReplayPage = () => {
                   
                   <TabsContent value="table" className="flex-1">
                     {metrics && <SpinsTable data={metrics.balanceHistory} />}
+                  </TabsContent>
+                  
+                  <TabsContent value="big-wins" className="flex-1">
+                    {metrics && <BigWinsTable data={metrics.bigWins || []} />}
                   </TabsContent>
                 </Tabs>
               </div>

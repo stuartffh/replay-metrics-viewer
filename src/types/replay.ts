@@ -18,6 +18,10 @@ export interface ParsedLogEntry {
   win: number;
   timestamp?: number;
   spinIndex?: number;
+  isFreeSpin?: boolean;
+  totalWin?: number;
+  freeSpinWin?: number;
+  isCollect?: boolean;
 }
 
 export interface ReplayMetrics {
@@ -28,7 +32,21 @@ export interface ReplayMetrics {
   biggestWin: number;
   biggestWinIndex: number;
   spinsCount: number;
-  balanceHistory: {balance: number, win: number, timestamp?: number, spinIndex?: number}[];
+  balanceHistory: {
+    balance: number;
+    win: number;
+    totalWin?: number;
+    bet?: number;
+    timestamp?: number;
+    spinIndex?: number;
+    isFreeSpin?: boolean;
+  }[];
   startingBalance?: number;
   endingBalance?: number;
+  freeSpinsCount?: number;
+  freeSpinsWin?: number;
+  bigWins: {
+    amount: number;
+    spinIndex: number;
+  }[];
 }

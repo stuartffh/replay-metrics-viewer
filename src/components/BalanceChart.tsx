@@ -1,13 +1,15 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from "recharts";
 import { formatCurrency } from '@/utils/replayUtils';
 
 interface BalanceChartProps {
   data: Array<{
     balance: number;
     win: number;
+    bet?: number;
+    timestamp?: number;
     spinIndex?: number;
   }>;
 }
@@ -15,10 +17,14 @@ interface BalanceChartProps {
 const BalanceChart: React.FC<BalanceChartProps> = ({ data }) => {
   // Prepare data for chart
   const chartData = data.map((entry, index) => ({
-    name: `Spin ${entry.spinIndex || index + 1}`,
+    name: `#${entry.spinIndex || index + 1}`,
     balance: entry.balance,
     win: entry.win,
+    bet: entry.bet || 0
   }));
+  
+  // Calculate starting balance for reference line
+  const startingBalance = data.length > 0 ? data[0].balance : 0;
 
   return (
     <Card className="metrics-card">
@@ -66,8 +72,24 @@ const BalanceChart: React.FC<BalanceChartProps> = ({ data }) => {
                 borderRadius: '4px',
                 color: '#E5DEFF'
               }}
-              formatter={(value: number) => [formatCurrency(value), '']}
-              labelFormatter={(label) => `${label}`}
+              formatter={(value: number, name: string) => {
+                if (name === "balance") return [formatCurrency(value), "Saldo"];
+                if (name === "win") return [formatCurrency(value), "Ganho"];
+                if (name === "bet") return [formatCurrency(value), "Aposta"];
+                return [formatCurrency(value), name];
+              }}
+              labelFormatter={(label) => `Giro ${label}`}
+            />
+            <ReferenceLine
+              y={startingBalance}
+              stroke="#ffffff55"
+              strokeDasharray="3 3"
+              label={{
+                value: "Saldo Inicial",
+                fill: "#ffffff55",
+                fontSize: 10,
+                position: "insideBottomRight"
+              }}
             />
             <Area 
               type="monotone" 
