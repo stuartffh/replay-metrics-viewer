@@ -24,20 +24,6 @@ const ReplayPage = () => {
   // Determine if we're in Round ID only mode
   const isRoundIdMode = token === 'roundid' && roundID && !envID;
   
-  // Set the appropriate URLs based on mode
-  let replayUrl = '';
-  let dataUrl = '';
-  
-  if (isRoundIdMode) {
-    // Round ID only mode
-    dataUrl = roundID ? `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?roundID=${roundID}` : '';
-  } else {
-    // Full replay mode
-    replayUrl = token ? `https://euioa.jxcsysekgu.net/${token}` : '';
-    dataUrl = token && roundID && envID ? 
-      `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?token=${token}&roundID=${roundID}&envID=${envID}` : '';
-  }
-
   useEffect(() => {
     const fetchReplayData = async () => {
       try {
@@ -45,6 +31,7 @@ const ReplayPage = () => {
         setError(null);
         
         if (isRoundIdMode) {
+          // Round ID only mode
           if (!roundID) {
             throw new Error('ID da rodada não fornecido');
           }
@@ -65,11 +52,13 @@ const ReplayPage = () => {
           
         } else {
           // Standard method with full parameters
-          if (!dataUrl) {
+          if (!token || !roundID || !envID) {
             throw new Error('Parâmetros de URL incompletos');
           }
           
+          const dataUrl = `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?token=${token}&roundID=${roundID}&envID=${envID}`;
           const response = await fetch(dataUrl);
+          
           if (!response.ok) {
             throw new Error(`Falha ao buscar dados do replay: ${response.statusText}`);
           }
@@ -89,11 +78,6 @@ const ReplayPage = () => {
           setMetrics(calculatedMetrics);
         }
         
-        console.log('Dados do replay analisados:', {
-          replayData,
-          metrics
-        });
-        
       } catch (err) {
         console.error("Erro ao buscar dados do replay:", err);
         setError(err instanceof Error ? err.message : "Erro desconhecido");
@@ -108,7 +92,10 @@ const ReplayPage = () => {
     };
 
     fetchReplayData();
-  }, [token, roundID, envID, dataUrl, isRoundIdMode, toast]);
+  }, [token, roundID, envID, isRoundIdMode, toast]);
+
+  // Set the appropriate URL for the video player
+  const replayUrl = token && token !== 'roundid' ? `https://euioa.jxcsysekgu.net/${token}` : '';
 
   return (
     <div className="min-h-screen flex flex-col bg-darkPurple">
