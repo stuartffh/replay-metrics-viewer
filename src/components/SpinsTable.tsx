@@ -18,6 +18,9 @@ interface SpinsTableProps {
 }
 
 const SpinsTable: React.FC<SpinsTableProps> = ({ data }) => {
+  // Log data to debug
+  console.log('Dados de histórico recebidos:', data);
+  
   return (
     <Card className="metrics-card h-full">
       <CardHeader className="pb-2">

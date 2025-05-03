@@ -76,7 +76,12 @@ export function parseLogEntries(replayData: ReplayData): ParsedLogEntry[] {
     
     // Handle different number formats
     const bet = parseFloat(crParams.c || '0') * (parseInt(crParams.l || '0', 10) || 20);
-    const balance = parseNumberWithCommas(srParams.balance || '0');
+    
+    // Parse balance - ensure we handle thousand separators properly
+    const balanceStr = srParams.balance || '0';
+    const balance = balanceStr.includes(',') 
+      ? parseFloat(balanceStr.split(',')[0]) + parseFloat(balanceStr.split(',')[1]) / 100
+      : parseFloat(balanceStr);
     
     // For big wins, check additional parameters
     // First try apwa (Big win value), if not present try w (regular win)
@@ -156,13 +161,15 @@ export function calculateMetrics(parsedEntries: ParsedLogEntry[]): ReplayMetrics
     
     if (entry.action === 'doSpin') {
       // Track bets
-      totalBets += entry.bet;
+      if (entry.bet > 0) {
+        totalBets += entry.bet;
+      }
       
       // Track wins
       if (entry.win > 0) {
         totalWins += entry.win;
         
-        // Track big wins (wins over 50x bet)
+        // Track big wins (wins over 10x bet)
         if (entry.win > entry.bet * 10) {
           bigWins.push({
             amount: entry.win,
@@ -185,7 +192,7 @@ export function calculateMetrics(parsedEntries: ParsedLogEntry[]): ReplayMetrics
         }
       }
       
-      // Add to balance history
+      // Add to balance history with accurate data
       balanceHistory.push({
         balance: entry.balance,
         win: entry.win,
