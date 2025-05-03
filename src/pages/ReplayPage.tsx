@@ -21,8 +21,12 @@ const ReplayPage = () => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  // Log params to check what we're receiving
+  console.log("Route parameters:", { token, roundID, envID });
+  
   // Determine if we're in Round ID only mode
   const isRoundIdMode = token === 'roundid' && roundID && !envID;
+  console.log("Is Round ID mode:", isRoundIdMode);
   
   useEffect(() => {
     const fetchReplayData = async () => {
@@ -32,41 +36,58 @@ const ReplayPage = () => {
         
         if (isRoundIdMode) {
           // Round ID only mode - using just the roundID parameter
+          console.log("Fetching by Round ID mode:", roundID);
+          
           if (!roundID) {
+            console.error("Round ID is missing");
             throw new Error('ID da rodada não fornecido');
           }
           
           // Use the specific function for fetching by round ID
           const data = await fetchReplayDataByRoundID(roundID);
+          console.log("Round ID data received:", data);
+          
           if (!data) {
+            console.error("Failed to fetch data by Round ID");
             throw new Error('Falha ao buscar dados pelo ID da rodada');
           }
           setReplayData(data);
           
           // Parse the log entries
           const parsedEntries = parseLogEntries(data);
+          console.log("Parsed entries:", parsedEntries.length);
           
           // Calculate metrics
           const calculatedMetrics = calculateMetrics(parsedEntries);
+          console.log("Calculated metrics:", calculatedMetrics);
           setMetrics(calculatedMetrics);
           
         } else {
           // Standard method with full parameters
+          console.log("Fetching by full parameters");
+          
           if (!token || !roundID || !envID) {
+            console.error("Missing URL parameters:", { token, roundID, envID });
             throw new Error('Parâmetros de URL incompletos');
           }
           
           const dataUrl = `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?token=${token}&roundID=${roundID}&envID=${envID}`;
+          console.log("Fetching URL data:", dataUrl);
+          
           const response = await fetch(dataUrl);
+          console.log("URL API Response status:", response.status);
           
           if (!response.ok) {
+            console.error("URL API Error response:", response.statusText);
             throw new Error(`Falha ao buscar dados do replay: ${response.statusText}`);
           }
           
           const data: ReplayData = await response.json();
+          console.log("URL API Data received:", data);
           setReplayData(data);
           
           if (data.error !== 0) {
+            console.error("URL API returned error:", data.description);
             throw new Error(`API retornou erro: ${data.description}`);
           }
           

@@ -45,16 +45,21 @@ export async function extractGameConfig(replayUrl: string): Promise<{roundID: st
 export async function fetchReplayDataByRoundID(roundID: string): Promise<ReplayData | null> {
   try {
     const dataUrl = `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?roundID=${roundID}`;
+    console.log("Fetching data by Round ID:", dataUrl);
+    
     const response = await fetch(dataUrl);
-    console.log = "${response}"
+    console.log("Round ID API Response status:", response.status);
     
     if (!response.ok) {
+      console.error("Round ID API Error response:", response.statusText);
       throw new Error(`Falha ao buscar dados do replay: ${response.statusText}`);
     }
     
     const data: ReplayData = await response.json();
+    console.log("Round ID API Data received:", data);
     
     if (data.error !== 0) {
+      console.error("Round ID API returned error:", data.description);
       throw new Error(`API retornou erro: ${data.description}`);
     }
     
