@@ -46,6 +46,7 @@ export async function fetchReplayDataByRoundID(roundID: string): Promise<ReplayD
   try {
     const dataUrl = `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?roundID=${roundID}`;
     const response = await fetch(dataUrl);
+    console.log = "${response}"
     
     if (!response.ok) {
       throw new Error(`Falha ao buscar dados do replay: ${response.statusText}`);
