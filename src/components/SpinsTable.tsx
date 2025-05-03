@@ -39,7 +39,7 @@ const SpinsTable: React.FC<SpinsTableProps> = ({ data }) => {
                 <TableRow key={index} className={`border-b border-secondary/20 ${entry.isFreeSpin ? 'bg-primary/10' : ''}`}>
                   <TableCell className="font-medium">
                     {entry.spinIndex || index + 1}
-                    {entry.isFreeSpin && <span className="ml-2 text-primary text-xs">(Free)</span>}
+                    {entry.isFreeSpin && <span className="ml-2 text-primary text-xs">(Grátis)</span>}
                   </TableCell>
                   <TableCell>
                     {entry.bet ? formatCurrency(entry.bet) : '-'}

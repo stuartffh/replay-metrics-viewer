@@ -54,7 +54,7 @@ const ReplayPage = () => {
         const calculatedMetrics = calculateMetrics(parsedEntries);
         setMetrics(calculatedMetrics);
         
-        console.log('Replay data parsed:', {
+        console.log('Dados do replay analisados:', {
           parsedEntries,
           calculatedMetrics
         });

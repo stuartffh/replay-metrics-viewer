@@ -14,7 +14,7 @@ export function extractReplayParams(replayUrl: string): { token: string; roundID
       envID: ''
     };
   } catch (error) {
-    console.error("Failed to parse replay URL:", error);
+    console.error("Falha ao analisar URL do replay:", error);
     return null;
   }
 }
@@ -23,7 +23,7 @@ export function extractReplayParams(replayUrl: string): { token: string; roundID
 export async function extractGameConfig(replayUrl: string): Promise<{roundID: string, envID: string} | null> {
   try {
     const response = await fetch(replayUrl);
-    if (!response.ok) throw new Error('Failed to fetch replay page');
+    if (!response.ok) throw new Error('Falha ao buscar página de replay');
     
     const html = await response.text();
     const gameConfigMatch = html.match(/gameConfig: '(.+?)'/);
@@ -37,7 +37,7 @@ export async function extractGameConfig(replayUrl: string): Promise<{roundID: st
     }
     return null;
   } catch (error) {
-    console.error("Failed to extract game config:", error);
+    console.error("Falha ao extrair configuração do jogo:", error);
     return null;
   }
 }
@@ -54,10 +54,10 @@ export function parseLogEntry(entry: string): Record<string, string> {
   return params;
 }
 
-// Helper function to parse number values that might contain commas
+// Helper function to parse number values that might contain commas or be formatted differently
 function parseNumberWithCommas(value: string): number {
   if (!value) return 0;
-  // Replace commas with dots for proper parsing
+  // Handle both comma and dot decimal separators
   return parseFloat(value.replace(',', '.'));
 }
 
@@ -77,28 +77,39 @@ export function parseLogEntries(replayData: ReplayData): ParsedLogEntry[] {
     // Handle different number formats
     const bet = parseFloat(crParams.c || '0') * (parseInt(crParams.l || '0', 10) || 20);
     const balance = parseNumberWithCommas(srParams.balance || '0');
-    const win = parseNumberWithCommas(srParams.w || '0');
+    
+    // For big wins, check additional parameters
+    // First try apwa (Big win value), if not present try w (regular win)
+    let win = 0;
+    if (srParams.apwa) {
+      // Mega win
+      win = parseNumberWithCommas(srParams.apwa || '0');
+    } else {
+      // Regular win
+      win = parseNumberWithCommas(srParams.w || '0');
+    }
+    
     const totalWin = parseNumberWithCommas(srParams.tw || '0');
     const freeSpinWin = parseNumberWithCommas(srParams.fswin || '0');
     
     // Check if this is a free spin
     const isFreeSpin = srParams.fs !== undefined && srParams.fs !== '0';
     
-    // For big wins, check additional parameters
-    const bigWin = parseNumberWithCommas(srParams.apwa || '0');
-    const finalWin = bigWin > 0 ? bigWin : win;
+    // Net profit tracking from ntp parameter
+    const netProfit = parseNumberWithCommas(srParams.ntp || '0');
     
     return {
       action,
       bet,
       balance,
-      win: finalWin,
+      win,
       totalWin,
       freeSpinWin,
       timestamp: parseInt(srParams.stime || '0', 10),
       spinIndex: parseInt(srParams.index || '0', 10),
       isFreeSpin,
-      isCollect
+      isCollect,
+      netProfit
     };
   });
 }
@@ -124,11 +135,20 @@ export function calculateMetrics(parsedEntries: ParsedLogEntry[]): ReplayMetrics
   }[] = [];
   
   // Filter by actual spin or collect actions
-  const validEntries = parsedEntries.filter(entry => entry.action === 'doSpin' || entry.action === 'doCollect');
+  const validEntries = parsedEntries.filter(entry => 
+    entry.action === 'doSpin' || entry.action === 'doCollect');
+  
   const spinsCount = validEntries.filter(entry => entry.action === 'doSpin').length;
   
-  // Find the initial balance
+  // Find the initial balance (use the first entry's balance)
   const startingBalance = validEntries.length > 0 ? validEntries[0].balance : 0;
+  
+  // Find the final balance (use the last entry's balance, especially for doCollect)
+  const endingBalance = validEntries.length > 0 ? 
+    validEntries[validEntries.length - 1].balance : 0;
+  
+  // Calculate net profit as the difference between final and initial balance
+  const netProfit = endingBalance - startingBalance;
   
   validEntries.forEach((entry, index) => {
     // Skip entries without balance information
@@ -142,8 +162,8 @@ export function calculateMetrics(parsedEntries: ParsedLogEntry[]): ReplayMetrics
       if (entry.win > 0) {
         totalWins += entry.win;
         
-        // Track big wins
-        if (entry.win > 50) {
+        // Track big wins (wins over 50x bet)
+        if (entry.win > entry.bet * 10) {
           bigWins.push({
             amount: entry.win,
             spinIndex: entry.spinIndex || index
@@ -176,10 +196,10 @@ export function calculateMetrics(parsedEntries: ParsedLogEntry[]): ReplayMetrics
         isFreeSpin: entry.isFreeSpin
       });
     } else if (entry.isCollect) {
-      // Handle collect actions
+      // Handle collect actions (end of session)
       balanceHistory.push({
         balance: entry.balance,
-        win: 0,
+        win: entry.win || 0,
         timestamp: entry.timestamp,
         spinIndex: entry.spinIndex || index
       });
@@ -190,9 +210,8 @@ export function calculateMetrics(parsedEntries: ParsedLogEntry[]): ReplayMetrics
   bigWins.sort((a, b) => b.amount - a.amount);
   
   // Calculate final metrics
-  const endingBalance = validEntries.length > 0 ? validEntries[validEntries.length - 1].balance : 0;
-  const netProfit = endingBalance - startingBalance;
-  const winRate = spinsCount > 0 ? validEntries.filter(entry => entry.win > 0).length / spinsCount * 100 : 0;
+  const winRate = spinsCount > 0 ? 
+    validEntries.filter(entry => entry.win > 0).length / spinsCount * 100 : 0;
   
   return {
     totalBets,

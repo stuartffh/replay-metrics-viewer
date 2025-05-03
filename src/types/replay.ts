@@ -22,6 +22,7 @@ export interface ParsedLogEntry {
   totalWin?: number;
   freeSpinWin?: number;
   isCollect?: boolean;
+  netProfit?: number;
 }
 
 export interface ReplayMetrics {
