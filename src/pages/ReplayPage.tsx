@@ -31,12 +31,12 @@ const ReplayPage = () => {
         setError(null);
         
         if (isRoundIdMode) {
-          // Round ID only mode
+          // Round ID only mode - using just the roundID parameter
           if (!roundID) {
             throw new Error('ID da rodada não fornecido');
           }
           
-          // Use the round ID only method
+          // Use the specific function for fetching by round ID
           const data = await fetchReplayDataByRoundID(roundID);
           if (!data) {
             throw new Error('Falha ao buscar dados pelo ID da rodada');
