@@ -8,7 +8,7 @@ import BalanceChart from '@/components/BalanceChart';
 import SpinsTable from '@/components/SpinsTable';
 import WinRateChart from '@/components/WinRateChart';
 import { ReplayData, ReplayMetrics } from '@/types/replay';
-import { parseLogEntries, calculateMetrics } from '@/utils/replayUtils';
+import { parseLogEntries, calculateMetrics, fetchReplayDataByRoundID } from '@/utils/replayUtils';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import BigWinsTable from '@/components/BigWinsTable';
@@ -21,9 +21,22 @@ const ReplayPage = () => {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const replayUrl = token ? `https://euioa.jxcsysekgu.net/${token}` : '';
-  const dataUrl = token && roundID && envID ? 
-    `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?token=${token}&roundID=${roundID}&envID=${envID}` : '';
+  // Determine if we're in Round ID only mode
+  const isRoundIdMode = token === 'roundid' && roundID && !envID;
+  
+  // Set the appropriate URLs based on mode
+  let replayUrl = '';
+  let dataUrl = '';
+  
+  if (isRoundIdMode) {
+    // Round ID only mode
+    dataUrl = roundID ? `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?roundID=${roundID}` : '';
+  } else {
+    // Full replay mode
+    replayUrl = token ? `https://euioa.jxcsysekgu.net/${token}` : '';
+    dataUrl = token && roundID && envID ? 
+      `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?token=${token}&roundID=${roundID}&envID=${envID}` : '';
+  }
 
   useEffect(() => {
     const fetchReplayData = async () => {
@@ -31,32 +44,54 @@ const ReplayPage = () => {
         setLoading(true);
         setError(null);
         
-        if (!dataUrl) {
-          throw new Error('Parâmetros de URL incompletos');
+        if (isRoundIdMode) {
+          if (!roundID) {
+            throw new Error('ID da rodada não fornecido');
+          }
+          
+          // Use the round ID only method
+          const data = await fetchReplayDataByRoundID(roundID);
+          if (!data) {
+            throw new Error('Falha ao buscar dados pelo ID da rodada');
+          }
+          setReplayData(data);
+          
+          // Parse the log entries
+          const parsedEntries = parseLogEntries(data);
+          
+          // Calculate metrics
+          const calculatedMetrics = calculateMetrics(parsedEntries);
+          setMetrics(calculatedMetrics);
+          
+        } else {
+          // Standard method with full parameters
+          if (!dataUrl) {
+            throw new Error('Parâmetros de URL incompletos');
+          }
+          
+          const response = await fetch(dataUrl);
+          if (!response.ok) {
+            throw new Error(`Falha ao buscar dados do replay: ${response.statusText}`);
+          }
+          
+          const data: ReplayData = await response.json();
+          setReplayData(data);
+          
+          if (data.error !== 0) {
+            throw new Error(`API retornou erro: ${data.description}`);
+          }
+          
+          // Parse the log entries
+          const parsedEntries = parseLogEntries(data);
+          
+          // Calculate metrics
+          const calculatedMetrics = calculateMetrics(parsedEntries);
+          setMetrics(calculatedMetrics);
         }
-        
-        const response = await fetch(dataUrl);
-        if (!response.ok) {
-          throw new Error(`Falha ao buscar dados do replay: ${response.statusText}`);
-        }
-        
-        const data: ReplayData = await response.json();
-        setReplayData(data);
-        
-        if (data.error !== 0) {
-          throw new Error(`API retornou erro: ${data.description}`);
-        }
-        
-        // Parse the log entries
-        const parsedEntries = parseLogEntries(data);
-        
-        // Calculate metrics
-        const calculatedMetrics = calculateMetrics(parsedEntries);
-        setMetrics(calculatedMetrics);
         
         console.log('Dados do replay analisados:', {
-          parsedEntries,
-          calculatedMetrics
+          replayData,
+          metrics
         });
         
       } catch (err) {
@@ -72,10 +107,8 @@ const ReplayPage = () => {
       }
     };
 
-    if (token && roundID && envID) {
-      fetchReplayData();
-    }
-  }, [token, roundID, envID, dataUrl, toast]);
+    fetchReplayData();
+  }, [token, roundID, envID, dataUrl, isRoundIdMode, toast]);
 
   return (
     <div className="min-h-screen flex flex-col bg-darkPurple">
@@ -84,7 +117,11 @@ const ReplayPage = () => {
       <main className="flex-1 container mx-auto p-4 lg:p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold gradient-text">Análise de Replay</h1>
-          <p className="text-gray-400">ID: {token}</p>
+          {isRoundIdMode ? (
+            <p className="text-gray-400">ID da Rodada: {roundID}</p>
+          ) : (
+            <p className="text-gray-400">ID: {token}</p>
+          )}
         </div>
         
         {loading ? (
@@ -109,9 +146,25 @@ const ReplayPage = () => {
             
             {/* Main Content: Video and Metrics */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <div className="h-[500px] animate-fade-in" style={{ animationDelay: '0.1s' }}>
-                <ReplayVideo replayUrl={replayUrl} />
-              </div>
+              {/* Only show video in full mode, not in Round ID mode */}
+              {!isRoundIdMode ? (
+                <div className="h-[500px] animate-fade-in" style={{ animationDelay: '0.1s' }}>
+                  <ReplayVideo replayUrl={replayUrl} />
+                </div>
+              ) : (
+                <div className="h-[500px] animate-fade-in p-4 bg-darkCharcoal rounded-lg flex items-center justify-center" 
+                  style={{ animationDelay: '0.1s' }}>
+                  <div className="text-center">
+                    <h3 className="text-xl font-bold text-gray-300 mb-4">
+                      Reprodução de vídeo não disponível
+                    </h3>
+                    <p className="text-gray-400 max-w-md">
+                      A visualização do replay não está disponível quando apenas o ID da rodada é fornecido.
+                      As métricas e estatísticas estão disponíveis ao lado.
+                    </p>
+                  </div>
+                </div>
+              )}
               
               <div className="h-[500px] animate-fade-in" style={{ animationDelay: '0.2s' }}>
                 <Tabs defaultValue="chart" className="h-full flex flex-col">

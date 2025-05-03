@@ -19,6 +19,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/replay/:token/:roundID/:envID" element={<ReplayPage />} />
+          <Route path="/replay/roundid/:roundID" element={<ReplayPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

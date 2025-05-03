@@ -1,4 +1,3 @@
-
 import { ReplayData, ParsedLogEntry, ReplayMetrics } from "../types/replay";
 
 // Extract replay parameters from URL
@@ -38,6 +37,29 @@ export async function extractGameConfig(replayUrl: string): Promise<{roundID: st
     return null;
   } catch (error) {
     console.error("Falha ao extrair configuração do jogo:", error);
+    return null;
+  }
+}
+
+// Fetch replay data using round ID only
+export async function fetchReplayDataByRoundID(roundID: string): Promise<ReplayData | null> {
+  try {
+    const dataUrl = `https://euioa.jxcsysekgu.net/ReplayServiceGlobal/api/replay/data?roundID=${roundID}`;
+    const response = await fetch(dataUrl);
+    
+    if (!response.ok) {
+      throw new Error(`Falha ao buscar dados do replay: ${response.statusText}`);
+    }
+    
+    const data: ReplayData = await response.json();
+    
+    if (data.error !== 0) {
+      throw new Error(`API retornou erro: ${data.description}`);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error("Falha ao buscar dados por Round ID:", error);
     return null;
   }
 }
